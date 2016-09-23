@@ -102,7 +102,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
                                                                     action:@selector(handlePanGesture:)];
     _panGestureRecognizer.delegate = self;
     [self.collectionView addGestureRecognizer:_panGestureRecognizer];
-
+    
     // Useful in multiple scenarios: one common scenario being when the Notification Center drawer is pulled down
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleApplicationWillResignActive:) name: UIApplicationWillResignActiveNotification object:nil];
 }
@@ -176,7 +176,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
     if ((newIndexPath == nil) || [newIndexPath isEqual:previousIndexPath]) {
         return;
     }
-
+    
     if ([self.dataSource respondsToSelector:@selector(collectionView:itemAtIndexPath:canMoveToIndexPath:)] &&
         ![self.dataSource collectionView:self.collectionView itemAtIndexPath:previousIndexPath canMoveToIndexPath:newIndexPath]) {
         return;
@@ -357,10 +357,11 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
         } break;
         case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateEnded: {
-            NSIndexPath *currentIndexPath = [self.collectionView indexPathForItemAtPoint:self.currentView.center];
+            NSIndexPath *currentPositionIndexPath = [self.collectionView indexPathForItemAtPoint:self.currentView.center];
+            NSIndexPath *currentIndexPath = currentPositionIndexPath ? currentPositionIndexPath : self.selectedItemIndexPath;
             
             if (currentIndexPath) {
-
+                
                 if ([self.delegate respondsToSelector:@selector(collectionView:layout:willEndDraggingItemAtIndexPath:)]) {
                     [self.delegate collectionView:self.collectionView layout:self willEndDraggingItemAtIndexPath:currentIndexPath];
                 }
@@ -379,7 +380,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
                      if (strongSelf) {
                          strongSelf.currentView.transform = CGAffineTransformMakeScale(1.0f, 1.0f);
                          strongSelf.currentView.center = layoutAttributes.center;
-                         strongSelf.currentView.alpha = 0.0;
+                         strongSelf.currentView.alpha = currentIndexPath == self.selectedItemIndexPath ? 1.0 : 0.0;
                      }
                  }
                  completion:^(BOOL finished) {
