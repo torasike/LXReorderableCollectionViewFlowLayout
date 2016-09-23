@@ -169,31 +169,29 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
     return (id<LXReorderableCollectionViewDelegateFlowLayout>)self.collectionView.delegate;
 }
 
-- (void)invalidateLayoutIfNecessary {
+- (void)invalidateExchangeLayoutIfNecessary {
     NSIndexPath *newIndexPath = [self.collectionView indexPathForItemAtPoint:self.currentView.center];
     NSIndexPath *previousIndexPath = self.selectedItemIndexPath;
     
     if ((newIndexPath == nil) || [newIndexPath isEqual:previousIndexPath]) {
         return;
     }
-    
+
     if ([self.dataSource respondsToSelector:@selector(collectionView:itemAtIndexPath:canMoveToIndexPath:)] &&
         ![self.dataSource collectionView:self.collectionView itemAtIndexPath:previousIndexPath canMoveToIndexPath:newIndexPath]) {
         return;
     }
     
-    self.selectedItemIndexPath = newIndexPath;
-    
     if ([self.dataSource respondsToSelector:@selector(collectionView:itemAtIndexPath:willMoveToIndexPath:)]) {
         [self.dataSource collectionView:self.collectionView itemAtIndexPath:previousIndexPath willMoveToIndexPath:newIndexPath];
     }
-
+    
     __weak typeof(self) weakSelf = self;
     [self.collectionView performBatchUpdates:^{
         __strong typeof(self) strongSelf = weakSelf;
         if (strongSelf) {
-            [strongSelf.collectionView deleteItemsAtIndexPaths:@[ previousIndexPath ]];
-            [strongSelf.collectionView insertItemsAtIndexPaths:@[ newIndexPath ]];
+            [strongSelf.collectionView moveItemAtIndexPath:newIndexPath toIndexPath:previousIndexPath];
+            [strongSelf.collectionView moveItemAtIndexPath:previousIndexPath toIndexPath:newIndexPath];
         }
     } completion:^(BOOL finished) {
         __strong typeof(self) strongSelf = weakSelf;
@@ -213,17 +211,17 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
 - (void)setupScrollTimerInDirection:(LXScrollingDirection)direction {
     if (!self.displayLink.paused) {
         LXScrollingDirection oldDirection = [self.displayLink.LX_userInfo[kLXScrollingDirectionKey] integerValue];
-
+        
         if (direction == oldDirection) {
             return;
         }
     }
     
     [self invalidatesScrollTimer];
-
+    
     self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(handleScroll:)];
     self.displayLink.LX_userInfo = @{ kLXScrollingDirectionKey : @(direction) };
-
+    
     [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
@@ -301,7 +299,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
             NSIndexPath *currentIndexPath = [self.collectionView indexPathForItemAtPoint:[gestureRecognizer locationInView:self.collectionView]];
             
             if ([self.dataSource respondsToSelector:@selector(collectionView:canMoveItemAtIndexPath:)] &&
-               ![self.dataSource collectionView:self.collectionView canMoveItemAtIndexPath:currentIndexPath]) {
+                ![self.dataSource collectionView:self.collectionView canMoveItemAtIndexPath:currentIndexPath]) {
                 return;
             }
             
@@ -359,15 +357,13 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
         } break;
         case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateEnded: {
-            NSIndexPath *currentIndexPath = self.selectedItemIndexPath;
+            NSIndexPath *currentIndexPath = [self.collectionView indexPathForItemAtPoint:self.currentView.center];
             
             if (currentIndexPath) {
+
                 if ([self.delegate respondsToSelector:@selector(collectionView:layout:willEndDraggingItemAtIndexPath:)]) {
                     [self.delegate collectionView:self.collectionView layout:self willEndDraggingItemAtIndexPath:currentIndexPath];
                 }
-                
-                self.selectedItemIndexPath = nil;
-                self.currentViewCenter = CGPointZero;
                 
                 UICollectionViewLayoutAttributes *layoutAttributes = [self layoutAttributesForItemAtIndexPath:currentIndexPath];
                 
@@ -383,6 +379,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
                      if (strongSelf) {
                          strongSelf.currentView.transform = CGAffineTransformMakeScale(1.0f, 1.0f);
                          strongSelf.currentView.center = layoutAttributes.center;
+                         strongSelf.currentView.alpha = 0.0;
                      }
                  }
                  completion:^(BOOL finished) {
@@ -391,9 +388,14 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
                      
                      __strong typeof(self) strongSelf = weakSelf;
                      if (strongSelf) {
+                         
+                         [self invalidateExchangeLayoutIfNecessary];
+                         [self invalidateLayout];
+                         
                          [strongSelf.currentView removeFromSuperview];
                          strongSelf.currentView = nil;
-                         [strongSelf invalidateLayout];
+                         self.selectedItemIndexPath = nil;
+                         self.currentViewCenter = CGPointZero;
                          
                          if ([strongSelf.delegate respondsToSelector:@selector(collectionView:layout:didEndDraggingItemAtIndexPath:)]) {
                              [strongSelf.delegate collectionView:strongSelf.collectionView layout:strongSelf didEndDraggingItemAtIndexPath:currentIndexPath];
@@ -413,8 +415,6 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
         case UIGestureRecognizerStateChanged: {
             self.panTranslationInCollectionView = [gestureRecognizer translationInView:self.collectionView];
             CGPoint viewCenter = self.currentView.center = LXS_CGPointAdd(self.currentViewCenter, self.panTranslationInCollectionView);
-            
-            [self invalidateLayoutIfNecessary];
             
             switch (self.scrollDirection) {
                 case UICollectionViewScrollDirectionVertical: {

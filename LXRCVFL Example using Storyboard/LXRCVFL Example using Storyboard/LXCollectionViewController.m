@@ -83,8 +83,8 @@
 - (void)collectionView:(UICollectionView *)collectionView itemAtIndexPath:(NSIndexPath *)fromIndexPath willMoveToIndexPath:(NSIndexPath *)toIndexPath {
     PlayingCard *playingCard = self.deck[fromIndexPath.item];
     
-    [self.deck removeObjectAtIndex:fromIndexPath.item];
-    [self.deck insertObject:playingCard atIndex:toIndexPath.item];
+    [self.deck replaceObjectAtIndex:fromIndexPath.item withObject:[self.deck objectAtIndex:toIndexPath.item]];
+    [self.deck replaceObjectAtIndex:toIndexPath.item withObject:playingCard];
 }
 
 - (BOOL)collectionView:(UICollectionView *)collectionView canMoveItemAtIndexPath:(NSIndexPath *)indexPath {
